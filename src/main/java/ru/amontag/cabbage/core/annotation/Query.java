@@ -16,4 +16,5 @@ public @interface Query {
     public String postprocessingScript() default "";
     public String target();
     public String method();
+    public String description() default "";
 }

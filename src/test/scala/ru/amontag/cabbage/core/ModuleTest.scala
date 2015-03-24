@@ -1,19 +1,17 @@
 package ru.amontag.cabbage.core
 
-import akka.actor.{Props, ActorSystem}
 import akka.util.Timeout
 import org.scalatest.FunSuite
-import ru.amontag.cabbage.core.annotation.{Create, Query, AccessType, Handler}
+import ru.amontag.cabbage.core.annotation.{AccessType, Handler, Query}
 
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, duration}
-import akka.pattern.ask
 
 /**
  * Created by montag on 23.03.15.
  */
 class TestModule extends Module {
-    override protected val name: String = "one"
+    override val name: String = "one"
 
     @Handler(name = "sum", accessType = AccessType.Public)
     def sum(@Query(value = "a", target = "two", method = "one") a: Int,
@@ -23,7 +21,7 @@ class TestModule extends Module {
 }
 
 class TestModuleTwo extends Module {
-    override protected val name: String = "two"
+    override val name: String = "two"
 
     @Handler(name = "one", accessType = AccessType.Public)
     def one(): Int = 1
@@ -32,14 +30,21 @@ class TestModuleTwo extends Module {
     def two(): Int = 2
 }
 
-class ModuleTest extends FunSuite {
+object TestConfig extends CabbageSystem {
 
+    import ru.amontag.cabbage.core.ModuleOperations._
+
+    override val modules: List[ModuleOperations] = new TestModule() + new TestModuleTwo()
+}
+
+class ModuleTest extends FunSuite {
     test("simple summator") {
-        implicit val timeout = Timeout(Duration(10, duration.MINUTES))
-        val actors = ActorSystem("cabbage")
-        val actor = actors.actorOf(Props(classOf[TestModule]), "test")
-        val actor2 = actors.actorOf(Props(classOf[TestModuleTwo]), "two")
-        val r = Await.result[Result]((actor ask Call("sum", Map())).mapTo[Result], Duration(10, duration.MINUTES))
+        import akka.pattern.ask
+        implicit val timeout = Timeout(Duration.apply(10, duration.MINUTES))
+        TestConfig.init()
+        val r = Await.result[Result]((TestConfig.api(classOf[TestModule]).ref ask Call("sum", Map())).mapTo[Result],
+            Duration.apply(10, duration.MINUTES))
         println(r)
+        Thread.sleep(100000)
     }
 }

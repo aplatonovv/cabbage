@@ -12,4 +12,5 @@ import java.lang.annotation.Target;
 @Target(ElementType.METHOD)
 public @interface Parameter {
     public String value();
+    public String description() default "";
 }

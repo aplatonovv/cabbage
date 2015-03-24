@@ -23,12 +23,21 @@ package object core {
                          target: Option[String] = None,
                          method: Option[String] = None,
                          preprocessScript: Option[String] = None,
-                         postprocessScript: Option[String] = None)
+                         postprocessScript: Option[String] = None,
+                         ofType: Class[_],
+                         description: String)
 
     object Parameter {
         def apply(defenition: java.lang.reflect.Parameter): Parameter = {
             Option(defenition.getAnnotation(classOf[Query])) match {
-                case None => Parameter(defenition.getAnnotation(classOf[annotation.Parameter]).value(), false)
+                case None =>
+                    val a = defenition.getAnnotation(classOf[annotation.Parameter])
+                    Parameter(
+                        name = a.value(),
+                        isQuery = false,
+                        ofType = defenition.getType,
+                        description = a.description()
+                    )
                 case Some(query) =>
                     val preprocessStep = query.preparationScript() match {
                         case "" => None
@@ -38,12 +47,16 @@ package object core {
                         case "" => None
                         case value => Some(value)
                     }
-                    Parameter(name = query.value(),
+                    Parameter(
+                        name = query.value(),
                         isQuery = true,
                         target = Option(query.target()),
                         method = Option(query.method()),
                         preprocessScript = preprocessStep,
-                        postprocessScript = postprocessStep)
+                        postprocessScript = postprocessStep,
+                        ofType = defenition.getType,
+                        description = query.description()
+                    )
             }
         }
     }

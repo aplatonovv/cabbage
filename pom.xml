@@ -12,6 +12,8 @@
         <scala-library.version>2.11.2</scala-library.version>
         <scalatest_2.11.version>2.2.1</scalatest_2.11.version>
         <akka-actor_2.11.version>2.3.9</akka-actor_2.11.version>
+        <akka-remote_2.11.version>2.3.9</akka-remote_2.11.version>
+        <akka-http-experimental_2.11.version>1.0-M4</akka-http-experimental_2.11.version>
     </properties>
 
     <build>
@@ -95,6 +97,18 @@
             <groupId>com.typesafe.akka</groupId>
             <artifactId>akka-actor_2.11</artifactId>
             <version>${akka-actor_2.11.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.typesafe.akka</groupId>
+            <artifactId>akka-remote_2.11</artifactId>
+            <version>${akka-remote_2.11.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>io.spray</groupId>
+            <artifactId>spray-client_2.11</artifactId>
+            <version>1.3.2</version>
         </dependency>
     </dependencies>
 </project>

@@ -1,56 +1,52 @@
 package ru.amontag.cabbage.core
 
+import java.util.concurrent.atomic.AtomicReference
+
 import akka.actor._
 import akka.pattern.ask
 import akka.util.Timeout
 
-import scala.collection.mutable
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, duration}
 
 /**
  * Created by montag on 23.03.15.
  */
-object Module {
-    val systemPath = "ru.amontag.cabbage"
+object ModuleOperations {
+    implicit def module2ModuleOperations(module: Module): ModuleOperations = ModuleOperations(module)
 
-    //TODO: добавление мапки со списком модулей
-    def create(modules: List[Class[Module]]): (ActorSystem, Map[String, ActorRef]) = {
-        val as = ActorSystem(systemPath)
-        modules.map(clazz => Props(clazz))
-        as -> Map()
-    }
+    implicit def moduleOperations2Module(module: ModuleOperations): Module = module.module
 }
 
-abstract class Module extends Actor {
-    protected val name: String
+case class ModuleOperations(module: Module) {
+    def +(other: ModuleOperations): List[ModuleOperations] = module :: other :: Nil
 
-    private val methods = mutable.Map[String, Method]()
+    def +(others: List[ModuleOperations]): List[ModuleOperations] = module :: others
+}
+
+abstract class Module {
+    var context: AtomicReference[ActorSystem] = new AtomicReference[ActorSystem]()
+    val name: String
+
+    val methods = getClass.getMethods
+      .filter(_.getAnnotation(classOf[annotation.Handler]) != null)
+      .map(method => {
+        val methodName = method.getName
+        val parameters = method.getParameters.map(Parameter.apply).map(p => p.name -> p).toMap
+        methodName -> Method(methodName, parameters)(method)
+    }).toMap
+
     private implicit val awaitingTime = Duration(10, duration.MINUTES)
     private implicit val timeout: Timeout = Timeout(awaitingTime)
 
+
     protected def init(): Unit = ()
 
-    protected def shutdown(): Unit = ()
+    def shutdown(): Unit = ()
 
-    @throws[Exception](classOf[Exception])
-    override def preStart(): Unit = {
-        getClass.getMethods
-          .filter(_.getAnnotation(classOf[annotation.Handler]) != null)
-          .foreach(method => {
-            val methodName = method.getName
-            val parameters = method.getParameters.map(Parameter.apply).map(p => p.name -> p).toMap
-            methods.put(methodName, Method(methodName, parameters)(method))
-        })
-    }
+    def preStart(): Unit = init()
 
-    override def receive: Receive = {
-        case InitMsg => init()
-        case ShutdownMsg => shutdown()
-        case Call(method, params) => sender ! Result(call(method, params))
-    }
-
-    private def call(name: String, constants: Map[String, AnyRef]): AnyRef = {
+    def call(name: String, constants: Map[String, AnyRef]): AnyRef = {
         methods.get(name) match {
             case Some(method) =>
                 val parameters = method.parameters.values.map(param => evaluateParameter(param, method, constants)).toList
@@ -71,14 +67,17 @@ abstract class Module extends Actor {
                 }
 
             //TODO: Добавить препроцессинг параметров запроса и построцессинг
-            case true => {
+            case true =>
                 if (description.target.get == this.name) {
                     call(description.method.get, constants)
                 } else {
-                    Await.result[Result]((context.actorSelection("/user/" + description.target.get) ask Call(description.method.get, constants)).mapTo[Result],
-                        Duration(10, duration.MINUTES)).value
+                    if (context.get != null)
+                        Await.result[Result]((context.get.actorSelection("/user/" + description.target.get) ask Call(description.method.get, constants)).mapTo[Result],
+                            Duration(10, duration.MINUTES)).value
+                    else {
+                        throw new IllegalStateException("Module was not added to Cabbage System")
+                    }
                 }
-            }
         }
     }
 }
